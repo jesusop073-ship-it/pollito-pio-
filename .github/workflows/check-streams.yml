@@ -1,1 +1,46 @@
 
+name: Verificar canales IPTV
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  check-streams:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Revisar el estado de cada canal
+        run: |
+          SUPABASE_URL="https://twxzplqqxqsfntfipotz.supabase.co"
+          ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR3eHpwbHFxeHFzZm50Zmlwb3R6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMDc5NjYsImV4cCI6MjEwNDg4Mzk2Nn0.Z-IZ_KHHYFtN6UfvDwk2ZfV2FTXGq51AO0qKfVTyfaM"
+
+          echo "Consultando canales activos en Supabase..."
+          curl -s "$SUPABASE_URL/rest/v1/channels?select=name,stream_url&is_active=eq.true" \
+            -H "apikey: $ANON_KEY" \
+            -H "Authorization: Bearer $ANON_KEY" \
+            | jq -c '.[]' > channels.jsonl
+
+          FAILED_FILE=$(mktemp)
+
+          while IFS= read -r row; do
+            name=$(echo "$row" | jq -r '.name')
+            url=$(echo "$row" | jq -r '.stream_url')
+            status=$(curl -o /dev/null -s -w "%{http_code}" --max-time 15 -L "$url" || echo "000")
+            echo "→ $name : HTTP $status"
+            if [[ "$status" != "200" && "$status" != "206" ]]; then
+              echo "$name (HTTP $status) — $url" >> "$FAILED_FILE"
+            fi
+          done < channels.jsonl
+
+          if [ -s "$FAILED_FILE" ]; then
+            echo ""
+            echo "⚠️  Canales caídos detectados:"
+            cat "$FAILED_FILE"
+            echo ""
+            echo "Este job va a marcarse como FALLIDO a propósito para que"
+            echo "GitHub te notifique por correo."
+            exit 1
+          fi
+
+          echo "Todos los canales responden correctamente."
