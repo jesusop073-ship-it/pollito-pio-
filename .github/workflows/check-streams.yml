@@ -38,12 +38,15 @@ jobs:
               echo "$name (HTTP $status) - $url" >> "$FAILED_FILE"
             fi
 
-            curl -s -X PATCH "$SUPABASE_URL/rest/v1/channels?id=eq.$id" \
+            patch_code=$(curl -s -o /tmp/patch_resp.json -w "%{http_code}" -X PATCH \
+              "$SUPABASE_URL/rest/v1/channels?id=eq.$id" \
               -H "apikey: $SERVICE_KEY" \
               -H "Authorization: Bearer $SERVICE_KEY" \
               -H "Content-Type: application/json" \
-              -d "{\"last_status\": \"$label\", \"last_http_code\": $status, \"last_checked_at\": \"$NOW\"}" \
-              > /dev/null
+              -H "Prefer: return=representation" \
+              -d "{\"last_status\": \"$label\", \"last_http_code\": $status, \"last_checked_at\": \"$NOW\"}")
+            echo "   PATCH hacia Supabase -> HTTP $patch_code"
+            echo "   Respuesta: $(cat /tmp/patch_resp.json)"
           done < channels.jsonl
 
           if [ -s "$FAILED_FILE" ]; then
