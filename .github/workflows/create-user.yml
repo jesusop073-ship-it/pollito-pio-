@@ -1,1 +1,64 @@
 
+name: Crear usuario IPTV
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: 'Email del usuario'
+        required: true
+      password:
+        description: 'Contraseña del usuario'
+        required: true
+      dias:
+        description: 'Días de duración de la suscripción'
+        required: true
+        default: '30'
+      max_dispositivos:
+        description: 'Máximo de dispositivos permitidos'
+        required: true
+        default: '2'
+
+jobs:
+  create-user:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Crear usuario y su suscripción en Supabase
+        run: |
+          SUPABASE_URL="https://twxzplqqxqsfntfipotz.supabase.co"
+          SERVICE_KEY="${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+          EMAIL="${{ github.event.inputs.email }}"
+          PASSWORD="${{ github.event.inputs.password }}"
+          DIAS="${{ github.event.inputs.dias }}"
+          MAX_DEVICES="${{ github.event.inputs.max_dispositivos }}"
+
+          echo "Creando usuario $EMAIL..."
+          response=$(curl -s -w "\n%{http_code}" -X POST "$SUPABASE_URL/auth/v1/admin/users" \
+            -H "apikey: $SERVICE_KEY" \
+            -H "Authorization: Bearer $SERVICE_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"email\": \"$EMAIL\", \"password\": \"$PASSWORD\", \"email_confirm\": true}")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          echo "HTTP $http_code"
+          echo "$body"
+
+          if [ "$http_code" != "200" ] && [ "$http_code" != "201" ]; then
+            echo "Error al crear el usuario, revisa el mensaje de arriba."
+            exit 1
+          fi
+
+          user_id=$(echo "$body" | jq -r '.id')
+          expires_at=$(date -u -d "+$DIAS days" +%Y-%m-%dT%H:%M:%SZ)
+
+          echo "Creando suscripcion: vence $expires_at, max $MAX_DEVICES dispositivos"
+          curl -s -X POST "$SUPABASE_URL/rest/v1/subscribers" \
+            -H "apikey: $SERVICE_KEY" \
+            -H "Authorization: Bearer $SERVICE_KEY" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=representation" \
+            -d "{\"user_id\": \"$user_id\", \"expires_at\": \"$expires_at\", \"max_devices\": $MAX_DEVICES}"
+
+          echo ""
+          echo "Listo: usuario $EMAIL creado, vence el $expires_at"
