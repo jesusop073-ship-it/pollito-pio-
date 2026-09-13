@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Administrar canales IPTV</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/supabase/2.45.4/supabase.min.js"></script>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --panel: #14171f;
+    --border: #262b36;
+    --text: #e8eaed;
+    --muted: #8b93a3;
+    --accent: #4f8cff;
+    --danger: #e5484d;
+    --success: #2fbf71;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 32px 20px; }
+  h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 28px; }
+
+  /* Login */
+  #loginBox {
+    max-width: 360px;
+    margin: 80px auto;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+  }
+  #loginBox h1 { text-align: center; margin-bottom: 20px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 14px 0 6px; }
+  input, select {
+    width: 100%;
+    padding: 10px 12px;
+    background: #1b1f29;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 14px;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .btn-primary { background: var(--accent); color: white; width: 100%; margin-top: 18px; }
+  .btn-primary:hover { background: #3f7de0; }
+  .error { color: var(--danger); font-size: 13px; margin-top: 10px; min-height: 16px; }
+
+  /* App */
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  .btn-secondary { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .btn-secondary:hover { color: var(--text); border-color: var(--muted); }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 16px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .form-grid .full { grid-column: 1 / -1; }
+  .btn-primary.small { width: auto; margin-top: 0; padding: 10px 20px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); font-size: 14px; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; }
+  td.actions { text-align: right; white-space: nowrap; }
+  .icon-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 6px 10px;
+    font-size: 13px;
+    margin-left: 6px;
+  }
+  .icon-btn:hover { color: var(--text); border-color: var(--muted); }
+  .icon-btn.danger:hover { color: var(--danger); border-color: var(--danger); }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+  .badge.active { background: rgba(47,191,113,0.15); color: var(--success); }
+  .badge.inactive { background: rgba(229,72,77,0.15); color: var(--danger); }
+  .updated { color: var(--muted); font-size: 12px; }
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--panel); border: 1px solid var(--border);
+    padding: 10px 18px; border-radius: 8px; font-size: 13px;
+    opacity: 0; transition: opacity 0.3s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+  .empty { color: var(--muted); text-align: center; padding: 24px 0; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div id="loginBox">
+  <h1>📺 Canales IPTV</h1>
+  <label>Email</label>
+  <input type="email" id="loginEmail" placeholder="tu@email.com" autocomplete="username">
+  <label>Contraseña</label>
+  <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+  <button class="btn-primary" id="loginBtn">Entrar</button>
+  <div class="error" id="loginError"></div>
+</div>
+
+<div class="wrap" id="app" style="display:none;">
+  <div class="topbar">
+    <div>
+      <h1>Canales IPTV</h1>
+      <div class="subtitle">Los cambios se reflejan solos en la app (Realtime activado)</div>
+    </div>
+    <button class="btn-secondary" id="logoutBtn">Cerrar sesión</button>
+  </div>
+
+  <div class="card">
+    <h2 id="formTitle">Agregar canal</h2>
+    <div class="form-grid">
+      <div>
+        <label>Nombre</label>
+        <input type="text" id="fName" placeholder="Ej: TEC Perú">
+      </div>
+      <div>
+        <label>Categoría</label>
+        <input type="text" id="fCategory" placeholder="Ej: Entretenimiento">
+      </div>
+      <div class="full">
+        <label>URL del stream (m3u8 / temporal)</label>
+        <input type="text" id="fStreamUrl" placeholder="https://...">
+      </div>
+      <div class="full">
+        <label>URL del logo (opcional)</label>
+        <input type="text" id="fLogoUrl" placeholder="https://...">
+      </div>
+      <div>
+        <label>Estado</label>
+        <select id="fActive">
+          <option value="true">Activo</option>
+          <option value="false">Inactivo</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-top:16px; display:flex; gap:10px;">
+      <button class="btn-primary small" id="saveBtn">Guardar canal</button>
+      <button class="btn-secondary" id="cancelEditBtn" style="display:none;">Cancelar edición</button>
+    </div>
+    <div class="error" id="formError"></div>
+  </div>
+
+  <div class="card">
+    <h2>Canales (<span id="countLabel">0</span>)</h2>
+    <div id="tableWrap"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // --- Configura aquí tu proyecto Supabase ---
+  const SUPABASE_URL = 'https://twxzplqqxqsfntfipotz.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR3eHpwbHFxeHFzZm50Zmlwb3R6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMDc5NjYsImV4cCI6MjEwNDg4Mzk2Nn0.Z-IZ_KHHYFtN6UfvDwk2ZfV2FTXGq51AO0qKfVTyfaM';
+
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  let editingId = null;
+
+  const loginBox = document.getElementById('loginBox');
+  const app = document.getElementById('app');
+  const toastEl = document.getElementById('toast');
+
+  function showToast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    setTimeout(() => toastEl.classList.remove('show'), 2200);
+  }
+
+  // ---------- Auth ----------
+  document.getElementById('loginBtn').addEventListener('click', async () => {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const errEl = document.getElementById('loginError');
+    errEl.textContent = '';
+    const { error } = await db.auth.signInWithPassword({ email, password });
+    if (error) {
+      errEl.textContent = 'No se pudo iniciar sesión: ' + error.message;
+      return;
+    }
+    await enterApp();
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await db.auth.signOut();
+    app.style.display = 'none';
+    loginBox.style.display = 'block';
+  });
+
+  async function checkSession() {
+    const { data } = await db.auth.getSession();
+    if (data.session) {
+      await enterApp();
+    }
+  }
+
+  async function enterApp() {
+    loginBox.style.display = 'none';
+    app.style.display = 'block';
+    await loadChannels();
+    subscribeRealtime();
+  }
+
+  // ---------- CRUD ----------
+  async function loadChannels() {
+    const { data, error } = await db
+      .from('channels')
+      .select('*')
+      .order('category')
+      .order('name');
+    if (error) {
+      showToast('Error cargando canales: ' + error.message);
+      return;
+    }
+    renderTable(data || []);
+  }
+
+  function renderTable(channels) {
+    document.getElementById('countLabel').textContent = channels.length;
+    const wrap = document.getElementById('tableWrap');
+    if (!channels.length) {
+      wrap.innerHTML = '<div class="empty">Todavía no hay canales cargados.</div>';
+      return;
+    }
+    let html = '<table><thead><tr><th>Nombre</th><th>Categoría</th><th>Estado</th><th>Actualizado</th><th></th></tr></thead><tbody>';
+    for (const c of channels) {
+      const updated = new Date(c.updated_at).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' });
+      html += `<tr>
+        <td>${escapeHtml(c.name)}</td>
+        <td>${escapeHtml(c.category || '—')}</td>
+        <td><span class="badge ${c.is_active ? 'active' : 'inactive'}">${c.is_active ? 'Activo' : 'Inactivo'}</span></td>
+        <td class="updated">${updated}</td>
+        <td class="actions">
+          <button class="icon-btn" onclick="editChannel('${c.id}')">Editar</button>
+          <button class="icon-btn danger" onclick="deleteChannel('${c.id}')">Borrar</button>
+        </td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  }
+
+  function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str ?? '';
+    return d.innerHTML;
+  }
+
+  let allChannelsCache = [];
+
+  window.editChannel = function (id) {
+    const c = allChannelsCache.find(x => x.id === id);
+    if (!c) return;
+    editingId = id;
+    document.getElementById('fName').value = c.name || '';
+    document.getElementById('fCategory').value = c.category || '';
+    document.getElementById('fStreamUrl').value = c.stream_url || '';
+    document.getElementById('fLogoUrl').value = c.logo_url || '';
+    document.getElementById('fActive').value = String(c.is_active);
+    document.getElementById('formTitle').textContent = 'Editando: ' + c.name;
+    document.getElementById('cancelEditBtn').style.display = 'inline-block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  window.deleteChannel = async function (id) {
+    const c = allChannelsCache.find(x => x.id === id);
+    if (!confirm(`¿Borrar el canal "${c ? c.name : ''}"? Esto no se puede deshacer.`)) return;
+    const { error } = await db.from('channels').delete().eq('id', id);
+    if (error) {
+      showToast('Error al borrar: ' + error.message);
+      return;
+    }
+    showToast('Canal borrado');
+  };
+
+  document.getElementById('cancelEditBtn').addEventListener('click', resetForm);
+
+  function resetForm() {
+    editingId = null;
+    document.getElementById('fName').value = '';
+    document.getElementById('fCategory').value = '';
+    document.getElementById('fStreamUrl').value = '';
+    document.getElementById('fLogoUrl').value = '';
+    document.getElementById('fActive').value = 'true';
+    document.getElementById('formTitle').textContent = 'Agregar canal';
+    document.getElementById('cancelEditBtn').style.display = 'none';
+    document.getElementById('formError').textContent = '';
+  }
+
+  document.getElementById('saveBtn').addEventListener('click', async () => {
+    const name = document.getElementById('fName').value.trim();
+    const category = document.getElementById('fCategory').value.trim();
+    const streamUrl = document.getElementById('fStreamUrl').value.trim();
+    const logoUrl = document.getElementById('fLogoUrl').value.trim();
+    const isActive = document.getElementById('fActive').value === 'true';
+    const errEl = document.getElementById('formError');
+    errEl.textContent = '';
+
+    if (!name || !streamUrl) {
+      errEl.textContent = 'Nombre y URL del stream son obligatorios.';
+      return;
+    }
+
+    const payload = {
+      name,
+      category: category || null,
+      stream_url: streamUrl,
+      logo_url: logoUrl || null,
+      is_active: isActive,
+      updated_at: new Date().toISOString(),
+    };
+
+    let result;
+    if (editingId) {
+      result = await db.from('channels').update(payload).eq('id', editingId);
+    } else {
+      result = await db.from('channels').insert(payload);
+    }
+
+    if (result.error) {
+      errEl.textContent = 'Error al guardar: ' + result.error.message;
+      return;
+    }
+
+    showToast(editingId ? 'Canal actualizado' : 'Canal agregado');
+    resetForm();
+  });
+
+  // ---------- Realtime: refresca la tabla sola si algo cambia ----------
+  function subscribeRealtime() {
+    db.channel('channels-admin-panel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'channels' }, () => {
+        loadChannels();
+      })
+      .subscribe();
+  }
+
+  // Guarda copia local de los canales cada vez que se listan, para editar/borrar sin otra consulta.
+  const originalRenderTable = renderTable;
+  renderTable = function (channels) {
+    allChannelsCache = channels;
+    originalRenderTable(channels);
+  };
+
+  checkSession();
+</script>
+
+</body>
+</html>
