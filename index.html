@@ -246,14 +246,18 @@
       wrap.innerHTML = '<div class="empty">Todavía no hay canales cargados.</div>';
       return;
     }
-    let html = '<table><thead><tr><th>Nombre</th><th>Categoría</th><th>Estado</th><th>Actualizado</th><th></th></tr></thead><tbody>';
+    let html = '<div style="margin-bottom:12px;"><button class="btn-secondary" id="checkAllBtn" onclick="checkAllStreams()">Probar todos ahora (manual)</button></div>';
+    html += '<table><thead><tr><th>Nombre</th><th>Categoría</th><th>Activo</th><th>Estado automático</th><th>Prueba manual</th><th></th></tr></thead><tbody>';
     for (const c of channels) {
-      const updated = new Date(c.updated_at).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' });
-      html += `<tr>
+      html += `<tr id="row-${c.id}">
         <td>${escapeHtml(c.name)}</td>
         <td>${escapeHtml(c.category || '—')}</td>
         <td><span class="badge ${c.is_active ? 'active' : 'inactive'}">${c.is_active ? 'Activo' : 'Inactivo'}</span></td>
-        <td class="updated">${updated}</td>
+        <td>${renderAutoStatus(c)}</td>
+        <td>
+          <span id="link-status-${c.id}" class="badge" style="background:rgba(139,147,163,0.15); color: var(--muted);">Sin probar</span>
+          <button class="icon-btn" onclick="checkStream('${c.id}')">Probar</button>
+        </td>
         <td class="actions">
           <button class="icon-btn" onclick="editChannel('${c.id}')">Editar</button>
           <button class="icon-btn danger" onclick="deleteChannel('${c.id}')">Borrar</button>
@@ -263,6 +267,67 @@
     html += '</tbody></table>';
     wrap.innerHTML = html;
   }
+
+  // Estado que guarda automáticamente el workflow de GitHub Actions cada
+  // 30 minutos (columnas last_status / last_http_code / last_checked_at).
+  function renderAutoStatus(c) {
+    if (!c.last_checked_at) {
+      return '<span class="badge" style="background:rgba(139,147,163,0.15); color: var(--muted);">Aún sin revisión automática</span>';
+    }
+    const when = new Date(c.last_checked_at).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' });
+    if (c.last_status === 'ok') {
+      return `<span class="badge active">✓ OK (HTTP ${c.last_http_code})</span><div class="updated">${when}</div>`;
+    }
+    return `<span class="badge inactive">✕ Caído (HTTP ${c.last_http_code})</span><div class="updated">${when}</div>`;
+  }
+
+  // Intenta conectarse al stream. Por las reglas de CORS del navegador no
+  // podemos leer el código HTTP exacto de servidores externos, pero sí
+  // detectamos si la conexión falla o se cuelga (típico de un link
+  // temporal ya caducado) usando un timeout corto.
+  async function pingStreamUrl(url, timeoutMs = 6000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      await fetch(url, { method: 'GET', mode: 'no-cors', signal: controller.signal });
+      clearTimeout(timer);
+      return true; // hubo respuesta de algún tipo, el servidor está vivo
+    } catch (e) {
+      clearTimeout(timer);
+      return false; // se cayó, no respondió a tiempo, o está bloqueado
+    }
+  }
+
+  window.checkStream = async function (id) {
+    const c = allChannelsCache.find(x => x.id === id);
+    if (!c) return;
+    const badge = document.getElementById('link-status-' + id);
+    badge.textContent = 'Probando...';
+    badge.style.background = 'rgba(139,147,163,0.15)';
+    badge.style.color = 'var(--muted)';
+    const ok = await pingStreamUrl(c.stream_url);
+    if (ok) {
+      badge.textContent = '✓ Responde';
+      badge.style.background = 'rgba(47,191,113,0.15)';
+      badge.style.color = 'var(--success)';
+    } else {
+      badge.textContent = '✕ Caído';
+      badge.style.background = 'rgba(229,72,77,0.15)';
+      badge.style.color = 'var(--danger)';
+    }
+  };
+
+  window.checkAllStreams = async function () {
+    const btn = document.getElementById('checkAllBtn');
+    btn.disabled = true;
+    btn.textContent = 'Probando todos...';
+    for (const c of allChannelsCache) {
+      await window.checkStream(c.id);
+    }
+    btn.disabled = false;
+    btn.textContent = 'Probar todos los links';
+    showToast('Verificación terminada');
+  };
 
   function escapeHtml(str) {
     const d = document.createElement('div');
