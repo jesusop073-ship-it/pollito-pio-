@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Administrar canales IPTV</title>
+<title>Administrar IPTV</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   :root {
@@ -24,11 +24,10 @@
     color: var(--text);
     min-height: 100vh;
   }
-  .wrap { max-width: 900px; margin: 0 auto; padding: 32px 20px; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 32px 20px; }
   h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
-  .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 28px; }
+  .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
 
-  /* Login */
   #loginBox {
     max-width: 360px;
     margin: 80px auto;
@@ -59,12 +58,20 @@
   }
   .btn-primary { background: var(--accent); color: white; width: 100%; margin-top: 18px; }
   .btn-primary:hover { background: #3f7de0; }
+  .btn-primary.small { width: auto; margin-top: 0; padding: 10px 20px; }
   .error { color: var(--danger); font-size: 13px; margin-top: 10px; min-height: 16px; }
 
-  /* App */
-  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
   .btn-secondary { background: transparent; color: var(--muted); border: 1px solid var(--border); }
   .btn-secondary:hover { color: var(--text); border-color: var(--muted); }
+
+  .tabs { display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
+  .tab-btn {
+    background: transparent; border: none; color: var(--muted);
+    padding: 10px 18px; font-size: 14px; font-weight: 600;
+    border-bottom: 2px solid transparent; border-radius: 0;
+  }
+  .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
 
   .card {
     background: var(--panel);
@@ -77,10 +84,9 @@
 
   .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .form-grid .full { grid-column: 1 / -1; }
-  .btn-primary.small { width: auto; margin-top: 0; padding: 10px 20px; }
 
   table { width: 100%; border-collapse: collapse; }
-  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); font-size: 14px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: top; }
   th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; }
   td.actions { text-align: right; white-space: nowrap; }
   .icon-btn {
@@ -93,16 +99,17 @@
   }
   .icon-btn:hover { color: var(--text); border-color: var(--muted); }
   .icon-btn.danger:hover { color: var(--danger); border-color: var(--danger); }
-  .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; display: inline-block; }
   .badge.active { background: rgba(47,191,113,0.15); color: var(--success); }
   .badge.inactive { background: rgba(229,72,77,0.15); color: var(--danger); }
-  .updated { color: var(--muted); font-size: 12px; }
+  .badge.muted { background: rgba(139,147,163,0.15); color: var(--muted); }
+  .updated { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .device-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 13px; }
   .toast {
     position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
     background: var(--panel); border: 1px solid var(--border);
     padding: 10px 18px; border-radius: 8px; font-size: 13px;
-    opacity: 0; transition: opacity 0.3s;
-    pointer-events: none;
+    opacity: 0; transition: opacity 0.3s; pointer-events: none;
   }
   .toast.show { opacity: 1; }
   .empty { color: var(--muted); text-align: center; padding: 24px 0; font-size: 14px; }
@@ -111,11 +118,11 @@
 <body>
 
 <div id="loginBox">
-  <h1>📺 Canales IPTV</h1>
+  <h1>Admin IPTV</h1>
   <label>Email</label>
   <input type="email" id="loginEmail" placeholder="tu@email.com" autocomplete="username">
   <label>Contraseña</label>
-  <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+  <input type="password" id="loginPassword" placeholder="********" autocomplete="current-password">
   <button class="btn-primary" id="loginBtn">Entrar</button>
   <div class="error" id="loginError"></div>
 </div>
@@ -123,63 +130,112 @@
 <div class="wrap" id="app" style="display:none;">
   <div class="topbar">
     <div>
-      <h1>Canales IPTV</h1>
-      <div class="subtitle">Los cambios se reflejan solos en la app (Realtime activado)</div>
+      <h1>Administración IPTV</h1>
+      <div class="subtitle">Canales y usuarios</div>
     </div>
     <button class="btn-secondary" id="logoutBtn">Cerrar sesión</button>
   </div>
 
-  <div class="card">
-    <h2 id="formTitle">Agregar canal</h2>
-    <div class="form-grid">
-      <div>
-        <label>Nombre</label>
-        <input type="text" id="fName" placeholder="Ej: TEC Perú">
-      </div>
-      <div>
-        <label>Categoría</label>
-        <input type="text" id="fCategory" placeholder="Ej: Entretenimiento">
-      </div>
-      <div class="full">
-        <label>URL del stream (m3u8 / temporal)</label>
-        <input type="text" id="fStreamUrl" placeholder="https://...">
-      </div>
-      <div class="full">
-        <label>URL del logo (opcional)</label>
-        <input type="text" id="fLogoUrl" placeholder="https://...">
-      </div>
-      <div>
-        <label>Estado</label>
-        <select id="fActive">
-          <option value="true">Activo</option>
-          <option value="false">Inactivo</option>
-        </select>
-      </div>
-    </div>
-    <div style="margin-top:16px; display:flex; gap:10px;">
-      <button class="btn-primary small" id="saveBtn">Guardar canal</button>
-      <button class="btn-secondary" id="cancelEditBtn" style="display:none;">Cancelar edición</button>
-    </div>
-    <div class="error" id="formError"></div>
+  <div class="tabs">
+    <button class="tab-btn active" id="tabChannelsBtn" onclick="switchTab('channels')">Canales</button>
+    <button class="tab-btn" id="tabUsersBtn" onclick="switchTab('users')">Usuarios</button>
   </div>
 
-  <div class="card">
-    <h2>Canales (<span id="countLabel">0</span>)</h2>
-    <div id="tableWrap"></div>
+  <div id="channelsSection">
+    <div class="card">
+      <h2 id="formTitle">Agregar canal</h2>
+      <div class="form-grid">
+        <div>
+          <label>Nombre</label>
+          <input type="text" id="fName" placeholder="Ej: TEC Peru">
+        </div>
+        <div>
+          <label>Categoría</label>
+          <input type="text" id="fCategory" placeholder="Ej: Entretenimiento">
+        </div>
+        <div class="full">
+          <label>URL del stream (m3u8 / temporal)</label>
+          <input type="text" id="fStreamUrl" placeholder="https://...">
+        </div>
+        <div class="full">
+          <label>URL del logo (opcional)</label>
+          <input type="text" id="fLogoUrl" placeholder="https://...">
+        </div>
+        <div>
+          <label>Estado</label>
+          <select id="fActive">
+            <option value="true">Activo</option>
+            <option value="false">Inactivo</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:16px; display:flex; gap:10px;">
+        <button class="btn-primary small" id="saveBtn">Guardar canal</button>
+        <button class="btn-secondary" id="cancelEditBtn" style="display:none;">Cancelar edición</button>
+      </div>
+      <div class="error" id="formError"></div>
+    </div>
+
+    <div class="card">
+      <h2>Canales (<span id="countLabel">0</span>)</h2>
+      <div style="margin-bottom:12px;">
+        <button class="btn-secondary" id="checkAllBtn" onclick="checkAllStreams()">Probar todos ahora (manual)</button>
+      </div>
+      <div id="tableWrap"></div>
+    </div>
   </div>
+
+  <div id="usersSection" style="display:none;">
+    <div class="card">
+      <h2 id="userFormTitle">Crear usuario</h2>
+      <div class="form-grid">
+        <div>
+          <label>Email</label>
+          <input type="email" id="uEmail" placeholder="usuario@email.com">
+        </div>
+        <div>
+          <label>Contraseña</label>
+          <input type="text" id="uPassword" placeholder="Contraseña">
+        </div>
+        <div>
+          <label>Duración (días)</label>
+          <input type="number" id="uDias" value="30" min="1">
+        </div>
+        <div>
+          <label>Máximo de dispositivos</label>
+          <input type="number" id="uMaxDevices" value="2" min="1">
+        </div>
+      </div>
+      <div style="margin-top:16px;">
+        <button class="btn-primary small" id="createUserBtn">Crear usuario</button>
+      </div>
+      <div class="error" id="userFormError"></div>
+    </div>
+
+    <div class="card">
+      <h2>Usuarios (<span id="userCountLabel">0</span>)</h2>
+      <div style="margin-bottom:12px;">
+        <button class="btn-secondary" onclick="loadUsers()">Refrescar lista</button>
+      </div>
+      <div id="usersTableWrap"></div>
+    </div>
+  </div>
+
 </div>
 
 <div class="toast" id="toast"></div>
 
 <script>
-  // --- Configura aquí tu proyecto Supabase ---
   const SUPABASE_URL = 'https://twxzplqqxqsfntfipotz.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR3eHpwbHFxeHFzZm50Zmlwb3R6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMDc5NjYsImV4cCI6MjEwNDg4Mzk2Nn0.Z-IZ_KHHYFtN6UfvDwk2ZfV2FTXGq51AO0qKfVTyfaM';
+  const EDGE_FUNCTION_URL = 'https://twxzplqqxqsfntfipotz.supabase.co/functions/v1/admin-api';
 
   const { createClient } = supabase;
   const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   let editingId = null;
+  let allChannelsCache = [];
+  let allUsersCache = [];
 
   const loginBox = document.getElementById('loginBox');
   const app = document.getElementById('app');
@@ -191,7 +247,20 @@
     setTimeout(() => toastEl.classList.remove('show'), 2200);
   }
 
-  // ---------- Auth ----------
+  function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str ?? '';
+    return d.innerHTML;
+  }
+
+  window.switchTab = function (tab) {
+    document.getElementById('channelsSection').style.display = tab === 'channels' ? 'block' : 'none';
+    document.getElementById('usersSection').style.display = tab === 'users' ? 'block' : 'none';
+    document.getElementById('tabChannelsBtn').classList.toggle('active', tab === 'channels');
+    document.getElementById('tabUsersBtn').classList.toggle('active', tab === 'users');
+    if (tab === 'users' && allUsersCache.length === 0) loadUsers();
+  };
+
   document.getElementById('loginBtn').addEventListener('click', async () => {
     const email = document.getElementById('loginEmail').value.trim();
     const password = document.getElementById('loginPassword').value;
@@ -213,9 +282,7 @@
 
   async function checkSession() {
     const { data } = await db.auth.getSession();
-    if (data.session) {
-      await enterApp();
-    }
+    if (data.session) await enterApp();
   }
 
   async function enterApp() {
@@ -225,18 +292,27 @@
     subscribeRealtime();
   }
 
-  // ---------- CRUD ----------
+  async function callAdminApi(action, payload) {
+    const { data: sessionData } = await db.auth.getSession();
+    const token = sessionData.session.access_token;
+    const res = await fetch(EDGE_FUNCTION_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+      },
+      body: JSON.stringify({ action, payload }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Error desconocido');
+    return body;
+  }
+
   async function loadChannels() {
-    const { data, error } = await db
-      .from('channels')
-      .select('*')
-      .order('category')
-      .order('name');
-    if (error) {
-      showToast('Error cargando canales: ' + error.message);
-      return;
-    }
-    renderTable(data || []);
+    const { data, error } = await db.from('channels').select('*').order('category').order('name');
+    if (error) { showToast('Error cargando canales: ' + error.message); return; }
+    allChannelsCache = data || [];
+    renderTable(allChannelsCache);
   }
 
   function renderTable(channels) {
@@ -246,55 +322,42 @@
       wrap.innerHTML = '<div class="empty">Todavía no hay canales cargados.</div>';
       return;
     }
-    let html = '<div style="margin-bottom:12px;"><button class="btn-secondary" id="checkAllBtn" onclick="checkAllStreams()">Probar todos ahora (manual)</button></div>';
-    html += '<table><thead><tr><th>Nombre</th><th>Categoría</th><th>Activo</th><th>Estado automático</th><th>Prueba manual</th><th></th></tr></thead><tbody>';
+    let html = '<table><thead><tr><th>Nombre</th><th>Categoría</th><th>Activo</th><th>Estado automático</th><th>Prueba manual</th><th></th></tr></thead><tbody>';
     for (const c of channels) {
-      html += `<tr id="row-${c.id}">
-        <td>${escapeHtml(c.name)}</td>
-        <td>${escapeHtml(c.category || '—')}</td>
-        <td><span class="badge ${c.is_active ? 'active' : 'inactive'}">${c.is_active ? 'Activo' : 'Inactivo'}</span></td>
-        <td>${renderAutoStatus(c)}</td>
-        <td>
-          <span id="link-status-${c.id}" class="badge" style="background:rgba(139,147,163,0.15); color: var(--muted);">Sin probar</span>
-          <button class="icon-btn" onclick="checkStream('${c.id}')">Probar</button>
-        </td>
-        <td class="actions">
-          <button class="icon-btn" onclick="editChannel('${c.id}')">Editar</button>
-          <button class="icon-btn danger" onclick="deleteChannel('${c.id}')">Borrar</button>
-        </td>
-      </tr>`;
+      html += '<tr id="row-' + c.id + '">' +
+        '<td>' + escapeHtml(c.name) + '</td>' +
+        '<td>' + escapeHtml(c.category || '-') + '</td>' +
+        '<td><span class="badge ' + (c.is_active ? 'active' : 'inactive') + '">' + (c.is_active ? 'Activo' : 'Inactivo') + '</span></td>' +
+        '<td>' + renderAutoStatus(c) + '</td>' +
+        '<td><span id="link-status-' + c.id + '" class="badge muted">Sin probar</span> ' +
+        '<button class="icon-btn" onclick="checkStream(\'' + c.id + '\')">Probar</button></td>' +
+        '<td class="actions">' +
+        '<button class="icon-btn" onclick="editChannel(\'' + c.id + '\')">Editar</button>' +
+        '<button class="icon-btn danger" onclick="deleteChannel(\'' + c.id + '\')">Borrar</button></td>' +
+        '</tr>';
     }
     html += '</tbody></table>';
     wrap.innerHTML = html;
   }
 
-  // Estado que guarda automáticamente el workflow de GitHub Actions cada
-  // 30 minutos (columnas last_status / last_http_code / last_checked_at).
   function renderAutoStatus(c) {
-    if (!c.last_checked_at) {
-      return '<span class="badge" style="background:rgba(139,147,163,0.15); color: var(--muted);">Aún sin revisión automática</span>';
-    }
+    if (!c.last_checked_at) return '<span class="badge muted">Sin revisión automática</span>';
     const when = new Date(c.last_checked_at).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' });
-    if (c.last_status === 'ok') {
-      return `<span class="badge active">✓ OK (HTTP ${c.last_http_code})</span><div class="updated">${when}</div>`;
-    }
-    return `<span class="badge inactive">✕ Caído (HTTP ${c.last_http_code})</span><div class="updated">${when}</div>`;
+    if (c.last_status === 'ok') return '<span class="badge active">OK (HTTP ' + c.last_http_code + ')</span><div class="updated">' + when + '</div>';
+    return '<span class="badge inactive">Caído (HTTP ' + c.last_http_code + ')</span><div class="updated">' + when + '</div>';
   }
 
-  // Intenta conectarse al stream. Por las reglas de CORS del navegador no
-  // podemos leer el código HTTP exacto de servidores externos, pero sí
-  // detectamos si la conexión falla o se cuelga (típico de un link
-  // temporal ya caducado) usando un timeout corto.
-  async function pingStreamUrl(url, timeoutMs = 6000) {
+  async function pingStreamUrl(url, timeoutMs) {
+    timeoutMs = timeoutMs || 6000;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       await fetch(url, { method: 'GET', mode: 'no-cors', signal: controller.signal });
       clearTimeout(timer);
-      return true; // hubo respuesta de algún tipo, el servidor está vivo
+      return true;
     } catch (e) {
       clearTimeout(timer);
-      return false; // se cayó, no respondió a tiempo, o está bloqueado
+      return false;
     }
   }
 
@@ -303,39 +366,20 @@
     if (!c) return;
     const badge = document.getElementById('link-status-' + id);
     badge.textContent = 'Probando...';
-    badge.style.background = 'rgba(139,147,163,0.15)';
-    badge.style.color = 'var(--muted)';
     const ok = await pingStreamUrl(c.stream_url);
-    if (ok) {
-      badge.textContent = '✓ Responde';
-      badge.style.background = 'rgba(47,191,113,0.15)';
-      badge.style.color = 'var(--success)';
-    } else {
-      badge.textContent = '✕ Caído';
-      badge.style.background = 'rgba(229,72,77,0.15)';
-      badge.style.color = 'var(--danger)';
-    }
+    badge.textContent = ok ? 'Responde' : 'Caído';
+    badge.className = 'badge ' + (ok ? 'active' : 'inactive');
   };
 
   window.checkAllStreams = async function () {
     const btn = document.getElementById('checkAllBtn');
     btn.disabled = true;
     btn.textContent = 'Probando todos...';
-    for (const c of allChannelsCache) {
-      await window.checkStream(c.id);
-    }
+    for (const c of allChannelsCache) await window.checkStream(c.id);
     btn.disabled = false;
-    btn.textContent = 'Probar todos los links';
+    btn.textContent = 'Probar todos ahora (manual)';
     showToast('Verificación terminada');
   };
-
-  function escapeHtml(str) {
-    const d = document.createElement('div');
-    d.textContent = str ?? '';
-    return d.innerHTML;
-  }
-
-  let allChannelsCache = [];
 
   window.editChannel = function (id) {
     const c = allChannelsCache.find(x => x.id === id);
@@ -353,12 +397,9 @@
 
   window.deleteChannel = async function (id) {
     const c = allChannelsCache.find(x => x.id === id);
-    if (!confirm(`¿Borrar el canal "${c ? c.name : ''}"? Esto no se puede deshacer.`)) return;
+    if (!confirm('¿Borrar el canal "' + (c ? c.name : '') + '"?')) return;
     const { error } = await db.from('channels').delete().eq('id', id);
-    if (error) {
-      showToast('Error al borrar: ' + error.message);
-      return;
-    }
+    if (error) { showToast('Error al borrar: ' + error.message); return; }
     showToast('Canal borrado');
   };
 
@@ -384,52 +425,132 @@
     const isActive = document.getElementById('fActive').value === 'true';
     const errEl = document.getElementById('formError');
     errEl.textContent = '';
-
-    if (!name || !streamUrl) {
-      errEl.textContent = 'Nombre y URL del stream son obligatorios.';
-      return;
-    }
-
-    const payload = {
-      name,
-      category: category || null,
-      stream_url: streamUrl,
-      logo_url: logoUrl || null,
-      is_active: isActive,
-      updated_at: new Date().toISOString(),
-    };
-
+    if (!name || !streamUrl) { errEl.textContent = 'Nombre y URL del stream son obligatorios.'; return; }
+    const payload = { name: name, category: category || null, stream_url: streamUrl, logo_url: logoUrl || null, is_active: isActive, updated_at: new Date().toISOString() };
     let result;
-    if (editingId) {
-      result = await db.from('channels').update(payload).eq('id', editingId);
-    } else {
-      result = await db.from('channels').insert(payload);
-    }
-
-    if (result.error) {
-      errEl.textContent = 'Error al guardar: ' + result.error.message;
-      return;
-    }
-
+    if (editingId) result = await db.from('channels').update(payload).eq('id', editingId);
+    else result = await db.from('channels').insert(payload);
+    if (result.error) { errEl.textContent = 'Error al guardar: ' + result.error.message; return; }
     showToast(editingId ? 'Canal actualizado' : 'Canal agregado');
     resetForm();
   });
 
-  // ---------- Realtime: refresca la tabla sola si algo cambia ----------
   function subscribeRealtime() {
     db.channel('channels-admin-panel')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'channels' }, () => {
-        loadChannels();
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'channels' }, () => loadChannels())
       .subscribe();
   }
 
-  // Guarda copia local de los canales cada vez que se listan, para editar/borrar sin otra consulta.
-  const originalRenderTable = renderTable;
-  renderTable = function (channels) {
-    allChannelsCache = channels;
-    originalRenderTable(channels);
+  async function loadUsers() {
+    const wrap = document.getElementById('usersTableWrap');
+    wrap.innerHTML = '<div class="empty">Cargando...</div>';
+    try {
+      const result = await callAdminApi('list_users', {});
+      allUsersCache = result.users;
+      renderUsers(result.users);
+    } catch (e) {
+      wrap.innerHTML = '<div class="empty">Error: ' + escapeHtml(e.message) + '</div>';
+    }
+  }
+
+  function renderUsers(users) {
+    document.getElementById('userCountLabel').textContent = users.length;
+    const wrap = document.getElementById('usersTableWrap');
+    if (!users.length) { wrap.innerHTML = '<div class="empty">Todavía no hay usuarios.</div>'; return; }
+
+    let html = '<table><thead><tr><th>Email</th><th>Vence</th><th>Máx. dispositivos</th><th>Dispositivos conectados</th><th></th></tr></thead><tbody>';
+    for (const u of users) {
+      const expires = u.expires_at ? new Date(u.expires_at) : null;
+      const expired = expires ? expires.getTime() < Date.now() : true;
+      const expiresLabel = expires ? expires.toLocaleString('es-PE', { dateStyle: 'medium', timeStyle: 'short' }) : 'Sin suscripción';
+
+      let devicesHtml = '';
+      if (u.devices.length === 0) {
+        devicesHtml = '<span class="badge muted">Ninguno conectado</span>';
+      } else {
+        devicesHtml = u.devices.map(d =>
+          '<div class="device-row"><span title="' + escapeHtml(d.device_id) + '">' +
+          escapeHtml(d.device_id.slice(0, 8)) + '... (' +
+          new Date(d.last_seen_at).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' }) + ')</span>' +
+          '<button class="icon-btn danger" onclick="closeSession(\'' + d.id + '\')">Cerrar sesión</button></div>'
+        ).join('');
+      }
+
+      html += '<tr>' +
+        '<td>' + escapeHtml(u.email) + '</td>' +
+        '<td><span class="badge ' + (expired ? 'inactive' : 'active') + '">' + expiresLabel + '</span></td>' +
+        '<td>' + (u.max_devices ?? '-') + '</td>' +
+        '<td>' + devicesHtml + '</td>' +
+        '<td class="actions">' +
+        '<button class="icon-btn" onclick="editSubscription(\'' + u.id + '\')">Editar</button>' +
+        '<button class="icon-btn danger" onclick="deleteUser(\'' + u.id + '\', \'' + escapeHtml(u.email) + '\')">Borrar usuario</button>' +
+        '</td></tr>';
+    }
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  }
+
+  window.closeSession = async function (deviceRowId) {
+    if (!confirm('¿Cerrar la sesión de este dispositivo? Tendrá que volver a iniciar sesión.')) return;
+    try {
+      await callAdminApi('delete_device', { device_row_id: deviceRowId });
+      showToast('Sesión cerrada');
+      loadUsers();
+    } catch (e) {
+      showToast('Error: ' + e.message);
+    }
   };
+
+  window.editSubscription = async function (userId) {
+    const u = allUsersCache.find(x => x.id === userId);
+    if (!u) return;
+    const currentDate = u.expires_at ? new Date(u.expires_at).toISOString().slice(0, 10) : '';
+    const newDate = prompt('Nueva fecha de vencimiento (AAAA-MM-DD):', currentDate);
+    if (!newDate) return;
+    const newMax = prompt('Máximo de dispositivos:', u.max_devices || 2);
+    if (!newMax) return;
+    try {
+      await callAdminApi('update_subscription', {
+        user_id: userId,
+        expires_at: new Date(newDate + 'T23:59:59Z').toISOString(),
+        max_devices: newMax,
+      });
+      showToast('Suscripción actualizada');
+      loadUsers();
+    } catch (e) {
+      showToast('Error: ' + e.message);
+    }
+  };
+
+  window.deleteUser = async function (userId, email) {
+    if (!confirm('¿Borrar por completo al usuario ' + email + '? Esto no se puede deshacer.')) return;
+    try {
+      await callAdminApi('delete_user', { user_id: userId });
+      showToast('Usuario borrado');
+      loadUsers();
+    } catch (e) {
+      showToast('Error: ' + e.message);
+    }
+  };
+
+  document.getElementById('createUserBtn').addEventListener('click', async () => {
+    const email = document.getElementById('uEmail').value.trim();
+    const password = document.getElementById('uPassword').value;
+    const dias = document.getElementById('uDias').value;
+    const maxDevices = document.getElementById('uMaxDevices').value;
+    const errEl = document.getElementById('userFormError');
+    errEl.textContent = '';
+    if (!email || !password) { errEl.textContent = 'Email y contraseña son obligatorios.'; return; }
+    try {
+      await callAdminApi('create_user', { email: email, password: password, dias: dias, max_devices: maxDevices });
+      showToast('Usuario creado');
+      document.getElementById('uEmail').value = '';
+      document.getElementById('uPassword').value = '';
+      loadUsers();
+    } catch (e) {
+      errEl.textContent = 'Error: ' + e.message;
+    }
+  });
 
   checkSession();
 </script>
