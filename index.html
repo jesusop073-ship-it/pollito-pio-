@@ -468,12 +468,18 @@
       if (u.devices.length === 0) {
         devicesHtml = '<span class="badge muted">Ninguno conectado</span>';
       } else {
-        devicesHtml = u.devices.map(d =>
-          '<div class="device-row"><span title="' + escapeHtml(d.device_id) + '">' +
-          escapeHtml(d.device_id.slice(0, 8)) + '... (' +
-          new Date(d.last_seen_at).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' }) + ')</span>' +
-          '<button class="icon-btn danger" onclick="closeSession(\'' + d.id + '\')">Cerrar sesión</button></div>'
-        ).join('');
+        devicesHtml = u.devices.map(d => {
+          const speed = (d.connection_mbps != null) ? (d.connection_mbps + ' Mbps') : 'Sin medir';
+          const watching = d.current_channel_name ? ('Viendo: ' + escapeHtml(d.current_channel_name)) : 'Sin reproducir';
+          return '<div class="device-row" style="flex-direction:column; align-items:flex-start; border-bottom:1px solid var(--border); padding:8px 0;">' +
+            '<div style="display:flex; justify-content:space-between; width:100%;">' +
+            '<span title="' + escapeHtml(d.device_id) + '">' + escapeHtml(d.device_id.slice(0, 8)) + '... (' +
+            new Date(d.last_seen_at).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' }) + ')</span>' +
+            '<button class="icon-btn danger" onclick="closeSession(\'' + d.id + '\')">Cerrar sesión</button>' +
+            '</div>' +
+            '<div class="updated">' + watching + ' &middot; ' + speed + '</div>' +
+            '</div>';
+        }).join('');
       }
 
       html += '<tr>' +
