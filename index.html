@@ -290,6 +290,7 @@
     app.style.display = 'block';
     await loadChannels();
     subscribeRealtime();
+    subscribeUsersRealtime();
   }
 
   async function callAdminApi(action, payload) {
@@ -438,6 +439,13 @@
   function subscribeRealtime() {
     db.channel('channels-admin-panel')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'channels' }, () => loadChannels())
+      .subscribe();
+  }
+
+  function subscribeUsersRealtime() {
+    db.channel('users-admin-panel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'devices' }, () => loadUsers())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'subscribers' }, () => loadUsers())
       .subscribe();
   }
 
